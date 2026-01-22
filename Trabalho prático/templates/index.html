@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Registo de Cliques</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 50px;
+      background-color: #f4f4f9;
+    }
+
+    h1 { color: #333; }
+    p { color: #555; }
+
+    .button-container { margin-top: 30px; }
+
+    button {
+      padding: 15px 30px;
+      margin: 10px;
+      font-size: 18px;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background-color: #4CAF50;
+      color: white;
+      transition: background-color 0.3s;
+    }
+
+    button:hover { background-color: #45a049; }
+
+    .notifications {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 10px;
+    }
+
+    .notification {
+      background: #333;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      opacity: 0;
+      transition: opacity 0.5s ease-in-out;
+    }
+
+    .notification.show { opacity: 0.9; }
+  </style>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, push, get, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyD5rFuYP_AGYH5SNZ1cORo9Mk5JUJcT-KU",
+      authDomain: "trabalho-pratico-cliques.firebaseapp.com",
+      databaseURL: "https://trabalho-pratico-cliques-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "trabalho-pratico-cliques",
+      storageBucket: "trabalho-pratico-cliques.firebasestorage.app",
+      messagingSenderId: "284515765125",
+      appId: "1:284515765125:web:90058cc56d93660d6652ec"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    window.enviarClique = async function(botao) {
+
+      const agora = new Date();
+      const ano = agora.getFullYear();
+      const mes = String(agora.getMonth() + 1).padStart(2, '0');
+      const dia = String(agora.getDate()).padStart(2, '0');
+      const hora = agora.toLocaleTimeString("pt-PT", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+
+      const dataChave = `${ano}-${mes}-${dia}`;
+      const caminho = `/${dataChave}`;
+
+      const snapshot = await get(child(ref(db), caminho));
+
+      let numero_sequencial = 1;
+
+      if (snapshot.exists()) {
+        const todos = snapshot.val();
+        const cliquesDoBotao = Object.values(todos).filter(c => c.botao === botao);
+        numero_sequencial = cliquesDoBotao.length + 1;
+      }
+
+      await push(ref(db, caminho), {
+        botao: botao,
+        hora: hora,
+        sequencia: numero_sequencial
+      });
+
+      mostrarNotificacao(`${botao} | Nº ${numero_sequencial} | ${dataChave} ${hora}`);
+
+      // 👉 ENVIA PARA FLASK
+      enviarParaFlask(botao, hora);
+    }
+
+    function mostrarNotificacao(mensagem) {
+      const container = document.getElementById("notifications");
+      const notif = document.createElement("div");
+      notif.classList.add("notification");
+      notif.textContent = mensagem;
+      container.appendChild(notif);
+
+      setTimeout(() => notif.classList.add("show"), 50);
+      setTimeout(() => {
+        notif.classList.remove("show");
+        setTimeout(() => notif.remove(), 500);
+      }, 3000);
+    }
+
+    // 👉 FUNÇÃO FLASK
+    async function enviarParaFlask(botao, hora) {
+      await fetch("/clique", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          botao: botao,
+          hora: hora
+        })
+      });
+    }
+  </script>
+</head>
+
+<body>
+
+  <h1>Aplicação de Registo de Cliques</h1>
+  <p>Clica num botão para registar e ver a notificação.</p>
+
+  <div class="button-container">
+    <button onclick="enviarClique('Botão 1')">Botão 1</button>
+    <button onclick="enviarClique('Botão 2')">Botão 2</button>
+    <button onclick="enviarClique('Botão 3')">Botão 3</button>
+    <button onclick="enviarClique('Botão 4')">Botão 4</button>
+  </div>
+
+  <div class="notifications" id="notifications"></div>
+
+</body>
+</html>
